@@ -6,6 +6,7 @@ import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 
@@ -28,16 +29,18 @@ public final class ReverseProxyServer implements Server {
     private int requestTimeout;
     private HttpServer server;
     private RequestRouter requestRouter;
+    private ExecutorService executor;
+
     private ReverseProxyServer(Builder builder) {
         threadPoolSize = builder.threadPoolSize;
-        requestTimeout = 1000;
+        requestTimeout = builder.requestTimeout;
         port = builder.port;
         hostName = builder.hostName;
-        requestRouter = new RequestRouter(builder.routeConfigs);
+        requestRouter = new RequestRouter(builder.routeConfigs, requestTimeout);
         if (port == 0 || Objects.isNull(hostName)) {
             throw new IllegalStateException("Proxy server is setup correctly. Please setup port and hostname");
         }
-
+        executor = Executors.newFixedThreadPool(threadPoolSize);
     }
 
     public static final class Builder {
@@ -95,7 +98,7 @@ public final class ReverseProxyServer implements Server {
         try {
             logger.info("Starting proxy server at port " + port);
             server = HttpServer.create(new InetSocketAddress(hostName, port), 0); // backlog=0 uses default system value.
-            server.setExecutor(Executors.newFixedThreadPool(threadPoolSize));
+            server.setExecutor(executor);
             // Create config endpoint that is used to configure the throttling rate limiter configuration
             server.createContext("/config", routingConfigUpdateHandler());
             server.createContext("/", requestRouter);
@@ -107,7 +110,8 @@ public final class ReverseProxyServer implements Server {
 
     @Override
     public void shutdown() {
-
+        server.stop(0);
+        executor.shutdownNow();
     }
 
     public HttpHandler routingConfigUpdateHandler() {

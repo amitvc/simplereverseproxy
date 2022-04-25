@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -20,12 +21,14 @@ public class RequestRouter implements HttpHandler {
     private static final Logger logger = Logger.getLogger(RequestRouter.class.getSimpleName());
 
     private final Map<String, RouteConfig> routeMap;
+    private final int requestTimeout;
 
-    public RequestRouter(Set<RouteConfig> configs) {
+    public RequestRouter(Set<RouteConfig> configs, int requestTimeout) {
         routeMap = new HashMap<>();
         for (RouteConfig config : configs) {
             routeMap.put(config.getAppContext(), config);
         }
+        this.requestTimeout = requestTimeout;
     }
 
     @Override
@@ -47,7 +50,12 @@ public class RequestRouter implements HttpHandler {
                 }
             }
         } else {
-            logger.info("We are currently only handling GET traffic");
+            logger.warning("We are currently only handling GET traffic");
+            String response = "We are currently only handling GET traffic";
+            request.sendResponseHeaders( 405, response.length());
+            OutputStream os = request.getResponseBody();
+            os.write(response.getBytes());
+            os.close();
         }
     }
 
@@ -69,8 +77,10 @@ public class RequestRouter implements HttpHandler {
             }
 
             if (!requestThrottled) {
-                HttpRequest httpRequest = HttpRequest.newBuilder().uri(buildUpstreamServerURI(routeConfig.getHostUrl(), request)).GET().build();
-                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest httpRequest = HttpRequest.newBuilder()
+                                                     .uri(buildUpstreamServerURI(routeConfig.getHostUrl(), request))
+                                                     .GET().timeout(Duration.ofMillis(requestTimeout)).build();
+                HttpClient client = HttpClient.newHttpClient(); // This can be reused. Change later.
                 HttpResponse<byte[]> response = client.send(httpRequest, BodyHandlers.ofByteArray());
                 byte[] upstreamServerResponse = response.body();
                 request.sendResponseHeaders(response.statusCode(), upstreamServerResponse.length);

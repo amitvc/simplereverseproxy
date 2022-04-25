@@ -15,8 +15,6 @@ public final class RouteConfig {
         return throttleRules;
     }
 
-
-
     public String getAppContext() {
         return appContext;
     }

@@ -85,7 +85,7 @@ public class TimeBasedThrottleRule implements ThrottleRule {
     public TimeBasedThrottleRule(int millis) {
         timeBtwRequest = millis;
         // We can expose this as a configuration as well.
-        scheduledExecutorService.scheduleAtFixedRate(pruneRequestStatsMap(), 0, 60, TimeUnit.SECONDS);
+        scheduledExecutorService.scheduleAtFixedRate(pruneRequestStatsMap(), 0, 5, TimeUnit.SECONDS);
         logger.info("Launching cache pruning thread at " + LocalDateTime.now());
     }
 
